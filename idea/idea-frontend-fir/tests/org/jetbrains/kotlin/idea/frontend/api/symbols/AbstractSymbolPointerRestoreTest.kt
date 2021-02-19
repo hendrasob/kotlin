@@ -12,14 +12,13 @@ import com.intellij.psi.PsiDocumentManager
 import org.jetbrains.kotlin.idea.executeOnPooledThreadInReadAction
 import org.jetbrains.kotlin.idea.frontend.api.KtAnalysisSession
 import org.jetbrains.kotlin.idea.frontend.api.SymbolByFqName
-import org.jetbrains.kotlin.idea.frontend.api.analyze
+import org.jetbrains.kotlin.idea.frontend.api.analyse
 import org.jetbrains.kotlin.idea.frontend.api.symbols.pointers.KtSymbolPointer
 import org.jetbrains.kotlin.idea.test.KotlinLightCodeInsightFixtureTestCase
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.kotlin.test.KotlinTestUtils
 import org.jetbrains.kotlin.util.suffixIfNot
-import org.junit.Assert
 import java.io.File
 
 abstract class AbstractSymbolPointerRestoreTest : KotlinLightCodeInsightFixtureTestCase() {
@@ -30,7 +29,7 @@ abstract class AbstractSymbolPointerRestoreTest : KotlinLightCodeInsightFixtureT
         val ktFile = myFixture.configureByText(file.name.suffixIfNot(".kt"), FileUtil.loadFile(file)) as KtFile
 
         val pointersWithRendered = executeOnPooledThreadInReadAction {
-            analyze(ktFile) {
+            analyse(ktFile) {
                 collectSymbols(path, ktFile).map { symbol ->
                     PointerWithRenderedSymbol(
                         symbol.createPointer(),
@@ -62,7 +61,7 @@ abstract class AbstractSymbolPointerRestoreTest : KotlinLightCodeInsightFixtureT
 
         // another read action
         executeOnPooledThreadInReadAction {
-            analyze(ktFile) {
+            analyse(ktFile) {
                 val restored = pointersWithRendered.map { (pointer, expectedRender) ->
                     val restored = pointer.restoreSymbol() ?: error("Symbol $expectedRender was not not restored correctly")
                     DebugSymbolRenderer.render(restored)

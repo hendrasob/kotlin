@@ -22,7 +22,7 @@ abstract class AbstractSymbolByFqNameTest : KotlinLightCodeInsightFixtureTestCas
         val symbolData = SymbolByFqName.getSymbolDataFromFile(path)
 
         val renderedSymbols = executeOnPooledThreadInReadAction {
-            analyze(fakeKtFile) {
+            analyse(fakeKtFile) {
                 val symbols = createSymbols(symbolData)
                 symbols.map { DebugSymbolRenderer.render(it) }
             }
