@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.diagnostics.Errors
+import org.jetbrains.kotlin.diagnostics.WhenMissingCase
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.checkReservedPrefixWord
@@ -40,19 +41,9 @@ import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeUtils
 import java.util.*
 
-sealed class WhenMissingCase {
-    abstract val branchConditionText: String
-}
-
-// Always must be first in the list
-object UnknownMissingCase : WhenMissingCase() {
-    override fun toString() = "unknown"
-
-    override val branchConditionText = "else"
-}
 
 val List<WhenMissingCase>.hasUnknown: Boolean
-    get() = firstOrNull() == UnknownMissingCase
+    get() = firstOrNull() == WhenMissingCase.Unknown
 
 private interface WhenExhaustivenessChecker {
     fun getMissingCases(
@@ -63,12 +54,6 @@ private interface WhenExhaustivenessChecker {
     ): List<WhenMissingCase>
 
     fun isApplicable(subjectType: KotlinType): Boolean = false
-}
-
-object NullMissingCase : WhenMissingCase() {
-    override fun toString() = branchConditionText
-
-    override val branchConditionText = "null"
 }
 
 // It's not a regular exhaustiveness checker, invoke it only inside other checkers
@@ -89,15 +74,10 @@ private object WhenOnNullableExhaustivenessChecker /* : WhenExhaustivenessChecke
                 }
             }
         }
-        return listOf(NullMissingCase)
+        return listOf(WhenMissingCase.NullIsMissing)
     }
 }
 
-class BooleanMissingCase(val b: Boolean) : WhenMissingCase() {
-    override fun toString() = branchConditionText
-
-    override val branchConditionText = b.toString()
-}
 
 private object WhenOnBooleanExhaustivenessChecker : WhenExhaustivenessChecker {
     override fun getMissingCases(
@@ -118,8 +98,8 @@ private object WhenOnBooleanExhaustivenessChecker : WhenExhaustivenessChecker {
                 }
             }
         }
-        return (if (!containsTrue) listOf(BooleanMissingCase(true)) else listOf()) +
-                (if (!containsFalse) listOf(BooleanMissingCase(false)) else listOf()) +
+        return (if (!containsTrue) listOf(WhenMissingCase.BooleanIsMissing.True) else listOf()) +
+                (if (!containsFalse) listOf(WhenMissingCase.BooleanIsMissing.False) else listOf()) +
                 WhenOnNullableExhaustivenessChecker.getMissingCases(expression, context, nullable)
     }
 
@@ -128,15 +108,6 @@ private object WhenOnBooleanExhaustivenessChecker : WhenExhaustivenessChecker {
     }
 }
 
-class ClassMissingCase(val descriptor: ClassDescriptor) : WhenMissingCase() {
-    val classIsSingleton get() = descriptor.kind.isSingleton
-
-    val classFqName get() = DescriptorUtils.getFqNameFromTopLevelClass(descriptor)
-
-    override fun toString() = descriptor.name.identifier.let { if (classIsSingleton) it else "is $it" }
-
-    override val branchConditionText = classFqName.asString().let { if (classIsSingleton) it else "is $it" }
-}
 
 internal abstract class WhenOnClassExhaustivenessChecker : WhenExhaustivenessChecker {
     private fun getReference(expression: KtExpression?): KtSimpleNameExpression? =
@@ -195,7 +166,7 @@ internal abstract class WhenOnClassExhaustivenessChecker : WhenExhaustivenessChe
         context: BindingContext
     ): List<WhenMissingCase> {
         // when on empty enum / sealed is considered non-exhaustive, see test whenOnEmptySealed
-        if (subclasses.isEmpty()) return listOf(UnknownMissingCase)
+        if (subclasses.isEmpty()) return listOf(WhenMissingCase.Unknown)
 
         val checkedDescriptors = linkedSetOf<ClassDescriptor>()
         for (whenEntry in whenExpression.entries) {
@@ -219,7 +190,12 @@ internal abstract class WhenOnClassExhaustivenessChecker : WhenExhaustivenessChe
                 }
             }
         }
-        return (subclasses - checkedDescriptors).map(::ClassMissingCase)
+        return (subclasses - checkedDescriptors).map { classDescriptor ->
+            WhenMissingCase.IsTypeCheckIsMissing(
+                classId = DescriptorUtils.getClassIdForNonLocalClass(classDescriptor),
+                isSingleton = classDescriptor.kind.isSingleton
+            )
+        }
     }
 }
 
@@ -329,10 +305,10 @@ object WhenChecker {
     ) = WhenOnSealedExhaustivenessChecker.getMissingCases(expression, context, sealedClassDescriptor, false)
 
     fun getMissingCases(expression: KtWhenExpression, context: BindingContext): List<WhenMissingCase> {
-        val type = whenSubjectType(expression, context) ?: return listOf(UnknownMissingCase)
+        val type = whenSubjectType(expression, context) ?: return listOf(WhenMissingCase.Unknown)
         val nullable = type.isMarkedNullable
         val checkers = exhaustivenessCheckers.filter { it.isApplicable(type) }
-        if (checkers.isEmpty()) return listOf(UnknownMissingCase)
+        if (checkers.isEmpty()) return listOf(WhenMissingCase.Unknown)
         return checkers.map { it.getMissingCases(expression, context, TypeUtils.getClassDescriptor(type), nullable) }.flatten()
     }
 

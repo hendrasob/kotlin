@@ -14,10 +14,7 @@ import org.jetbrains.kotlin.descriptors.annotations.Annotated;
 import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor;
 import org.jetbrains.kotlin.incremental.components.LookupLocation;
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation;
-import org.jetbrains.kotlin.name.FqName;
-import org.jetbrains.kotlin.name.FqNameUnsafe;
-import org.jetbrains.kotlin.name.Name;
-import org.jetbrains.kotlin.name.SpecialNames;
+import org.jetbrains.kotlin.name.*;
 import org.jetbrains.kotlin.resolve.constants.ConstantValue;
 import org.jetbrains.kotlin.resolve.constants.StringValue;
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter;
@@ -112,6 +109,16 @@ public class DescriptorUtils {
             return FqName.topLevel(name);
         }
         return getFqNameFromTopLevelClass(containingDeclaration).child(name);
+    }
+
+    @NotNull
+    public static ClassId getClassIdForNonLocalClass(@NotNull DeclarationDescriptor descriptor) {
+        DeclarationDescriptor containingDeclaration = descriptor.getContainingDeclaration();
+        Name name = descriptor.getName();
+        if (!(containingDeclaration instanceof ClassDescriptor)) {
+            return new ClassId(FqName.ROOT, name);
+        }
+        return getClassIdForNonLocalClass(containingDeclaration).createNestedClassId(name);
     }
 
     public static boolean isTopLevelDeclaration(@Nullable DeclarationDescriptor descriptor) {
